@@ -20,35 +20,41 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
+
+#define TINY_GSM_MODEM_SIM7000
+#include <TinyGsmClient.h>
+
 #include "semver/semver.h"
 
-class esp32FOTA
-{
-public:
-  esp32FOTA(String firwmareType, int firwmareVersion, boolean validate = false, boolean allow_insecure_https = false );
-  esp32FOTA(String firwmareType, String firmwareSemanticVersion, boolean validate = false, boolean allow_insecure_https = false );
+class esp32FOTA {
+ public:
+  esp32FOTA(String firwmareType, int firwmareVersion, boolean validate = false, boolean allow_insecure_https = false);
+  esp32FOTA(String firwmareType, String firmwareSemanticVersion, boolean validate = false, boolean allow_insecure_https = false);
   ~esp32FOTA();
-  void forceUpdate(String firmwareHost, uint16_t firmwarePort, String firmwarePath, boolean validate );
-  void forceUpdate(String firmwareURL, boolean validate );
-  void forceUpdate(boolean validate );
+  void forceUpdate(String firmwareHost, uint16_t firmwarePort, String firmwarePath, boolean validate);
+  void forceUpdate(String firmwareURL, boolean validate);
+  void forceUpdate(boolean validate);
   void execOTA();
   bool execHTTPcheck();
   int getPayloadVersion();
-  void getPayloadVersion(char * version_string);
+  void getPayloadVersion(char* version_string);
   bool useDeviceID;
   String checkURL;
-  bool validate_sig( unsigned char *signature, uint32_t firmware_size );
+  bool validate_sig(unsigned char* signature, uint32_t firmware_size);
+  void setModem(TinyGsm& modem);
 
-private:
+ private:
   String getDeviceID();
   String _firmwareType;
   semver_t _firmwareVersion = {0};
-  semver_t _payloadVersion = {0};
-  String _firmwareUrl;
+  semver_t _payloadVersion  = {0};
+  String _firmwareHost;
+  String _firmwareBin;
+  int _firmwarePort;
   boolean _check_sig;
   boolean _allow_insecure_https;
   bool checkJSONManifest(JsonVariant JSONDocument);
-
+  TinyGsm* _modem;
 };
 
 #endif
