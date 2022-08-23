@@ -1,18 +1,7 @@
 /*
-   esp32 firmware OTA
-   Date: December 2018
-   Author: Chris Joyce <https://github.com/chrisjoyce911/esp32FOTA/esp32FOTA>
-   Purpose: Perform an OTA update from a bin located on a webserver (HTTP Only)
-
-   Date: 2021-12-21
-   Author: Moritz Meintker <https://thinksilicon.de>
-   Remarks: Re-written/removed a bunch of functions around HTTPS. The library is
-            now URL-agnostic. This means if you provide an https://-URL it will
-            use the root_ca.pem (needs to be provided via SPIFFS) to verify the
-            server certificate and then download the resource through an encrypted
-            connection unless you set the allow_insecure_https option.
-            Otherwise it will just use plain HTTP which will still offer to sign
-            your firmware image.
+   esp32 firmware OTA using TinyGsm
+   Date: 2022-08-22
+   Purpose: Perform an OTA update from a bin located on a webserver, using gsm connection
 */
 
 #include "esp32fota.h"
@@ -24,6 +13,7 @@
 
 #include "ArduinoJson.h"
 #include "SSLClient.h"
+#include "ca_cert.h"
 #include "esp_ota_ops.h"
 #include "mbedtls/md.h"
 #include "mbedtls/md_internal.h"
@@ -169,59 +159,44 @@ void esp32FOTA::execOTA() {
   TinyGsmClient client;
   client.init(_modem);
   SSLClient secure_client(&client);
-  // http.setConnectTimeout( 1000 );  // Will check later
-  // http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS); //Probably don't have this in ssl
+  // http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS); // Don't have this in ssl. TODO: Add similar
 
-  log_i("Connecting to: %s\r\n", _firmwareHost.c_str());
-  if (!_allow_insecure_https) {
-    // If we're downloading from secure URL use WifiClientSecure instead
-    // and provide the root_ca.pem
-    log_i("Loading root_ca.pem");
+  log_i("Connecting to: %s...", _firmwareHost.c_str());
 
-    File root_ca_file = SPIFFS.open("/root_ca.pem");
-    if (!root_ca_file) {
-      log_e("Could not open root_ca.pem");
-      return;
-    }
-    {
-      std::string root_ca = "";
-      while (root_ca_file.available()) {
-        root_ca.push_back(root_ca_file.read());
-      }
-      root_ca_file.close();
-      secure_client.setCACert(root_ca.c_str());
-    }
-  }
-  secure_client.connect(_firmwareHost.c_str(), _firmwarePort);  // Add check fail
+  // Include root_ca in SSLClient style, you need to include a ca_cert.h at the top
+  if (!_allow_insecure_https) secure_client.setCACert(root_ca);
+  if (!secure_client.connect(_firmwareHost.c_str(), _firmwarePort)) log_i("fail! Retrying...\r\n");
+  log_i("OK\r\n");
 
   // Make a HTTP request:
   secure_client.print(String("GET ") + _firmwareBin + " HTTP/1.1\r\n");
   secure_client.print(String("Host: ") + _firmwareHost + "\r\n");
   secure_client.print("Connection: close\r\n\r\n");
 
+  // Check timeout
   long timeout = millis();
   while (secure_client.available() == 0) {
     if (millis() - timeout > 30000L) {
       Serial.println(">>> Client Timeout!");
       secure_client.stop();
-      delay(10000L);
-      return;
     }
   }
 
   while (secure_client.available()) {
     String line = secure_client.readStringUntil('\n');
     line.trim();
-    // Serial.println(line);  // Uncomment this to show response header
+    // log_i("%s", line);  // Uncomment this to show response header
     line.toLowerCase();
     if (line.startsWith("content-length:")) {
       contentLength = line.substring(line.lastIndexOf(':') + 1).toInt();
-    } else if (line.startsWith("content-type:")) {
+    }
+    if (line.startsWith("content-type:")) {
       String contentType = line.substring(line.lastIndexOf(':') + 1);
       if (contentType == "application/octet-stream") {
         isValidContentType = true;
       }
-    } else if (line.length() == 0) {
+    }
+    if (line.length() == 0) {
       break;
     }
   }
@@ -229,7 +204,7 @@ void esp32FOTA::execOTA() {
   // Check what is the contentLength and if content type is `application/octet-stream`
   log_i("contentLength : %i, isValidContentType : %s", contentLength, String(isValidContentType));
 
-  // if( contentLength && isValidContentType ) { // I skip check for content-type, uncomment this to enable
+  // if( contentLength && isValidContentType ) { // Skip check for content-type, uncomment this to enable
   if (_check_sig) {
     // If firmware is signed, extract signature and decrease content-length by 512 bytes for signature
     contentLength = contentLength - 512;
@@ -372,23 +347,7 @@ bool esp32FOTA::execHTTPcheck() {
   if (useURL.substring(0, 5) == "https") {
     urlRaw  = useURL.substring(8);
     urlPort = 443;
-    if (!_allow_insecure_https) {
-      // If the checkURL is https load the root-CA and connect with that
-      log_i("Loading root_ca.pem");
-      File root_ca_file = SPIFFS.open("/root_ca.pem");
-      if (!root_ca_file) {
-        log_e("Could not open root_ca.pem");
-        return false;
-      }
-      {
-        std::string root_ca = "";
-        while (root_ca_file.available()) {
-          root_ca.push_back(root_ca_file.read());
-        }
-        root_ca_file.close();
-        secure_client.setCACert(root_ca.c_str());
-      }
-    }
+    if (!_allow_insecure_https) secure_client.setCACert(root_ca);
   } else {
     urlRaw  = useURL.substring(7);
     urlPort = 80;
@@ -396,7 +355,8 @@ bool esp32FOTA::execHTTPcheck() {
   // SSLClient connect to the host so we need to separate the host and the path
   String urlHost = urlRaw.substring(0, urlRaw.indexOf('/'));
   String urlPath = urlRaw.substring(urlRaw.indexOf('/'));
-  secure_client.connect(urlHost.c_str(), urlPort);
+  if (!secure_client.connect(urlHost.c_str(), urlPort)) log_i("fail! Retrying...\r\n");
+  log_i("OK\r\n");
 
   // Make a HTTP request:
   secure_client.print(String("GET ") + urlPath + " HTTP/1.1\r\n");
@@ -509,4 +469,124 @@ int esp32FOTA::getPayloadVersion() {
 
 void esp32FOTA::getPayloadVersion(char *version_string) { semver_render(&_payloadVersion, version_string); }
 
-void esp32FOTA::setModem(TinyGsm &modem) { _modem = &modem; }
+void esp32FOTA::setModem(TinyGsm &modem, int led, int pwr, int baud, int rx, int tx) {
+  _modem     = &modem;
+  _ledPin    = led;
+  _pwrPin    = pwr;
+  _modemBaud = baud;
+  _modemRX   = rx;
+  _modemTX   = tx;
+}
+
+void esp32FOTA::turnModemOn() {
+  unsigned long current = millis();
+  digitalWrite(_ledPin, LOW);
+  digitalWrite(_pwrPin, LOW);
+  while (millis() - current < 1000) {
+    ;
+  }  // Datasheet Ton minutes = 1S
+  digitalWrite(_pwrPin, HIGH);
+}
+
+void esp32FOTA::turnModemOff() {
+  unsigned long current = millis();
+  digitalWrite(_pwrPin, LOW);
+  while (millis() - current < 1500) {
+    ;
+  }  // Datasheet Ton minutes = 1.2S
+  digitalWrite(_pwrPin, HIGH);
+  digitalWrite(_ledPin, LOW);
+}
+
+void esp32FOTA::modemRestart() {
+  unsigned long current = millis();
+  turnModemOff();
+  while (millis() - current < 1000) {
+    ;
+  }
+  current = millis();
+  turnModemOn();
+  while (millis() - current < 5000) {
+    ;
+  }
+}
+
+void esp32FOTA::readyUpModem(TinyGsm &modem, const char *apn, const char *user, const char *pass) {
+  Serial1.begin(_modemBaud, SERIAL_8N1, _modemRX, _modemTX);
+  Serial.print("Initializing modem...");
+  if (!modem.init()) {
+    Serial.print(" fail... restarting modem...");
+    modemRestart();
+    if (!modem.restart()) {
+      Serial.println(" fail... even after restart");
+      return;
+    }
+  }
+  Serial.println(" OK");
+
+  if (!modem.testAT()) {
+    Serial.println("Failed to restart modem, attempting to continue without restarting");
+    modemRestart();
+    return;
+  }
+
+  // General information
+  Serial.println("Modem Name: " + modem.getModemName());
+  Serial.println("Modem Info: " + modem.getModemInfo());
+
+  unsigned long current = millis();
+  // Set modes. Only use 2 and 13
+  modem.setNetworkMode(2);
+  while (millis() - current < 3000) {
+    ;
+  }
+
+  // Choose IoT mode. Only use if the SIM provider supports
+  // current = millis()
+  // _sim_modem.setPreferredMode(3);
+  // while (millis() - current < 3000) {
+  //   ;
+  // }
+
+  // Wait for network availability
+  Serial.print("Waiting for network...");
+  if (!modem.waitForNetwork()) {
+    current = millis();
+    Serial.println(" fail");
+    while (millis() - current < 10000) {
+      ;
+    }
+    return;
+  }
+  Serial.println(" OK");
+
+  // Connect to the GPRS network
+  Serial.print("Connecting to network...");
+  if (!modem.isNetworkConnected()) {
+    current = millis();
+    Serial.println(" fail");
+    while (millis() - current < 10000) {
+      ;
+    }
+    return;
+  }
+  Serial.println(" OK");
+
+  // Connect to APN
+  Serial.print("Connecting to APN: ");
+  Serial.print(apn);
+  if (!modem.gprsConnect(apn, user, pass)) {
+    Serial.println(" fail");
+    return;
+  }
+  digitalWrite(_ledPin, HIGH);
+  Serial.println(" OK");
+
+  // More info..
+  Serial.println("");
+  Serial.println("CCID: " + modem.getSimCCID());
+  Serial.println("IMEI: " + modem.getIMEI());
+  Serial.println("Operator: " + modem.getOperator());
+  Serial.println("Local IP: " + String(modem.localIP()));
+  Serial.println("Signal quality: " + String(modem.getSignalQuality()));
+}

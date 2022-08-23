@@ -1,18 +1,7 @@
 /*
-   esp32 firmware OTA
-   Date: December 2018
-   Author: Chris Joyce <https://github.com/chrisjoyce911/esp32FOTA/esp32FOTA>
-   Purpose: Perform an OTA update from a bin located on a webserver (HTTP Only)
-
-   Date: 2021-12-21
-   Author: Moritz Meintker <https://thinksilicon.de>
-   Remarks: Re-written/removed a bunch of functions around HTTPS. The library is
-            now URL-agnostic. This means if you provide an https://-URL it will
-            use the root_ca.pem (needs to be provided via SPIFFS) to verify the
-            server certificate and then download the ressource through an encrypted
-            connection.
-            Otherwise it will just use plain HTTP which will still offer to sign
-            your firmware image.
+   esp32 firmware OTA using TinyGsm
+   Date: 2022-08-22
+   Purpose: Perform an OTA update from a bin located on a webserver, using gsm connection
 */
 
 #ifndef esp32fota_h
@@ -41,7 +30,9 @@ class esp32FOTA {
   bool useDeviceID;
   String checkURL;
   bool validate_sig(unsigned char* signature, uint32_t firmware_size);
-  void setModem(TinyGsm& modem);
+  void modemRestart();
+  void readyUpModem(TinyGsm& modem, const char* apn, const char* user, const char* pass);
+  void setModem(TinyGsm& modem, int led, int pwr, int baud, int rx, int tx);
 
  private:
   String getDeviceID();
@@ -54,6 +45,9 @@ class esp32FOTA {
   boolean _check_sig;
   boolean _allow_insecure_https;
   bool checkJSONManifest(JsonVariant JSONDocument);
+  void turnModemOn();
+  void turnModemOff();
+  int _ledPin, _pwrPin, _modemBaud, _modemRX, _modemTX;
   TinyGsm* _modem;
 };
 
