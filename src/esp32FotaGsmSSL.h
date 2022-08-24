@@ -4,8 +4,8 @@
    Purpose: Perform an OTA update from a bin located on a webserver, using gsm connection
 */
 
-#ifndef esp32fota_h
-#define esp32fota_h
+#ifndef esp32FotaGsmSSL_h
+#define esp32FotaGsmSSL_h
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -15,11 +15,11 @@
 
 #include "semver/semver.h"
 
-class esp32FOTA {
+class esp32FotaGsmSSL {
  public:
-  esp32FOTA(String firwmareType, int firwmareVersion, boolean validate = false, boolean allow_insecure_https = false);
-  esp32FOTA(String firwmareType, String firmwareSemanticVersion, boolean validate = false, boolean allow_insecure_https = false);
-  ~esp32FOTA();
+  esp32FotaGsmSSL(String firwmareType, int firwmareVersion, boolean validate = false, boolean allow_insecure_https = false);
+  esp32FotaGsmSSL(String firwmareType, String firmwareSemanticVersion, boolean validate = false, boolean allow_insecure_https = false);
+  ~esp32FotaGsmSSL();
   void forceUpdate(String firmwareHost, uint16_t firmwarePort, String firmwarePath, boolean validate);
   void forceUpdate(String firmwareURL, boolean validate);
   void forceUpdate(boolean validate);

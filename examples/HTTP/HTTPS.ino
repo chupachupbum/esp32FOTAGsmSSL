@@ -5,7 +5,7 @@
 
    Setup:
    Step 1 : Set your gsm credentials
-   Step 2 : set esp32fota()
+   Step 2 : set esp32FotaGsmSSL()
    Step 3 : Provide SPIFFS filesystem with root_ca.pem of your webserver
 
    Upload:
@@ -18,15 +18,14 @@
 #include <Arduino.h>
 #include <FS.h>
 #include <SPIFFS.h>
-#include <esp32fota.h>
+#include <esp32FotaGsmSSL.h>
 
 // ============== GSM ===============
 #define TINY_GSM_MODEM_SIM7000  // Modem is SIM7000
 #include <TinyGsmClient.h>
 
-// ESP32 LilyGO-T-SIM7000G pins definition
+// Define your pins definition
 #define MODEM_UART_BAUD 9600
-#define MODEM_DTR 25
 #define MODEM_TX 27
 #define MODEM_RX 26
 #define MODEM_PWRKEY 4
@@ -37,28 +36,28 @@
 #define SerialAT Serial1  // For GSM module
 
 // Your GPRS credentials, if any
-const char apn[]  = "m3-world";  // TO CHANGE
-const char user[] = "mms";       // TO CHANGE
-const char pass[] = "mms";       // TO CHANGE
+const char apn[]  = "";  // TO CHANGE
+const char user[] = "";  // TO CHANGE
+const char pass[] = "";  // TO CHANGE
 
 TinyGsm modem(SerialAT);
-esp32FOTA esp32fota("esp32-fota-http", 1, true, false);
+esp32FotaGsmSSL esp32FotaGsmSSL("esp32-fota-http", 1, true, false);
 
 void setup() {
   // Provide spiffs with root_ca.pem to validate server certificate
   SPIFFS.begin(true);
 
-  esp32fota.checkURL = "https://raw.githubusercontent.com/chupachupbum/upload-folder/master/firmware_sig.json";
+  esp32FotaGsmSSL.checkURL = "";  // TO CHANGE
   Serial.begin(115200);
-  esp32fota.setModem(modem, LED_PIN, MODEM_PWRKEY, MODEM_UART_BAUD, MODEM_RX, MODEM_TX);
-  esp32fota.readyUpModem(modem, apn, user, pass);
+  esp32FotaGsmSSL.setModem(modem, LED_PIN, MODEM_PWRKEY, MODEM_UART_BAUD, MODEM_RX, MODEM_TX);
+  esp32FotaGsmSSL.readyUpModem(modem, apn, user, pass);
 }
 
 void loop() {
-  bool updatedNeeded = esp32fota.execHTTPcheck();
+  bool updatedNeeded = esp32FotaGsmSSL.execHTTPcheck();
   if (updatedNeeded) {
     Serial.println("Confirm OTA");
-    esp32fota.execOTA();
+    esp32FotaGsmSSL.execOTA();
   }
 
   delay(2000);

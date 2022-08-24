@@ -4,7 +4,7 @@
    Purpose: Perform an OTA update from a bin located on a webserver, using gsm connection
 */
 
-#include "esp32fota.h"
+#include "esp32FotaGsmSSL.h"
 
 #include <Arduino.h>
 #include <FS.h>
@@ -19,7 +19,7 @@
 #include "mbedtls/md_internal.h"
 #include "mbedtls/pk.h"
 
-esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, boolean validate, boolean allow_insecure_https) {
+esp32FotaGsmSSL::esp32FotaGsmSSL(String firmwareType, int firmwareVersion, boolean validate, boolean allow_insecure_https) {
   _firmwareType         = firmwareType;
   _firmwareVersion      = semver_t{firmwareVersion};
   _check_sig            = validate;
@@ -31,7 +31,7 @@ esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, boolean validate,
   log_i("Current firmware version: %s", version_no);
 }
 
-esp32FOTA::esp32FOTA(String firmwareType, String firmwareSemanticVersion, boolean validate, boolean allow_insecure_https) {
+esp32FotaGsmSSL::esp32FotaGsmSSL(String firmwareType, String firmwareSemanticVersion, boolean validate, boolean allow_insecure_https) {
   if (semver_parse(firmwareSemanticVersion.c_str(), &_firmwareVersion)) {
     log_e("Invalid semver string %s passed to constructor. Defaulting to 0", firmwareSemanticVersion.c_str());
     _firmwareVersion = semver_t{0};
@@ -47,7 +47,7 @@ esp32FOTA::esp32FOTA(String firmwareType, String firmwareSemanticVersion, boolea
   log_i("Current firmware version: %s", version_no);
 }
 
-esp32FOTA::~esp32FOTA() {
+esp32FotaGsmSSL::~esp32FotaGsmSSL() {
   semver_free(&_firmwareVersion);
   semver_free(&_payloadVersion);
 }
@@ -55,7 +55,7 @@ esp32FOTA::~esp32FOTA() {
 // Check file signature
 // https://techtutorialsx.com/2018/05/10/esp32-arduino-mbed-tls-using-the-sha-256-algorithm/
 // https://github.com/ARMmbed/mbedtls/blob/development/programs/pkey/rsa_verify.c
-bool esp32FOTA::validate_sig(unsigned char *signature, uint32_t firmware_size) {
+bool esp32FotaGsmSSL::validate_sig(unsigned char *signature, uint32_t firmware_size) {
   int ret = 1;
   mbedtls_pk_context pk;
   mbedtls_md_context_t rsa;
@@ -152,7 +152,7 @@ bool esp32FOTA::validate_sig(unsigned char *signature, uint32_t firmware_size) {
 }
 
 // OTA Logic
-void esp32FOTA::execOTA() {
+void esp32FotaGsmSSL::execOTA() {
   int contentLength       = 0;
   bool isValidContentType = false;
 
@@ -251,7 +251,7 @@ void esp32FOTA::execOTA() {
   }
 }
 
-bool esp32FOTA::checkJSONManifest(JsonVariant JSONDocument) {
+bool esp32FotaGsmSSL::checkJSONManifest(JsonVariant JSONDocument) {
   if (strcmp(JSONDocument["type"].as<const char *>(), _firmwareType.c_str()) != 0) {
     log_i("Payload type in manifest %s doesn't match current firmware %s", JSONDocument["type"].as<const char *>(), _firmwareType.c_str());
     log_i("Doesn't match type: %s", _firmwareType.c_str());
@@ -311,7 +311,7 @@ bool esp32FOTA::checkJSONManifest(JsonVariant JSONDocument) {
   return false;
 }
 
-bool esp32FOTA::execHTTPcheck() {
+bool esp32FotaGsmSSL::execHTTPcheck() {
   String useURL;
 
   if (useDeviceID) {
@@ -399,7 +399,7 @@ bool esp32FOTA::execHTTPcheck() {
   return false;  // We didn't get a hit against the above, return false
 }
 
-String esp32FOTA::getDeviceID() {
+String esp32FotaGsmSSL::getDeviceID() {
   char deviceid[21];
   uint64_t chipid;
   chipid = ESP.getEfuseMac();
@@ -409,7 +409,7 @@ String esp32FOTA::getDeviceID() {
 }
 
 // Force a firmware update regardless on current version
-void esp32FOTA::forceUpdate(String firmwareURL, boolean validate) {
+void esp32FotaGsmSSL::forceUpdate(String firmwareURL, boolean validate) {
   String urlRaw;
   if (firmwareURL.substring(0, 5) == "https") {
     urlRaw        = firmwareURL.substring(8);
@@ -423,7 +423,7 @@ void esp32FOTA::forceUpdate(String firmwareURL, boolean validate) {
   execOTA();
 }
 
-void esp32FOTA::forceUpdate(String firmwareHost, uint16_t firmwarePort, String firmwarePath, boolean validate) {
+void esp32FotaGsmSSL::forceUpdate(String firmwareHost, uint16_t firmwarePort, String firmwarePath, boolean validate) {
   _firmwareHost = firmwareHost;
   _firmwareBin  = firmwarePath;
   _firmwarePort = firmwarePort;
@@ -431,7 +431,7 @@ void esp32FOTA::forceUpdate(String firmwareHost, uint16_t firmwarePort, String f
   execOTA();
 }
 
-void esp32FOTA::forceUpdate(boolean validate) {
+void esp32FotaGsmSSL::forceUpdate(boolean validate) {
   // Forces an update from a manifest, ignoring the version check
   if (!execHTTPcheck()) {
     if (!_firmwareHost) {
@@ -448,14 +448,14 @@ void esp32FOTA::forceUpdate(boolean validate) {
 /**
  * This function return the new version of new firmware
  */
-int esp32FOTA::getPayloadVersion() {
-  log_w("int esp32FOTA::getPayloadVersion() only returns the major version from semantic version strings. Use void esp32FOTA::getPayloadVersion(char * version_string) instead!");
+int esp32FotaGsmSSL::getPayloadVersion() {
+  log_w("int esp32FotaGsmSSL::getPayloadVersion() only returns the major version from semantic version strings. Use void esp32FotaGsmSSL::getPayloadVersion(char * version_string) instead!");
   return _payloadVersion.major;
 }
 
-void esp32FOTA::getPayloadVersion(char *version_string) { semver_render(&_payloadVersion, version_string); }
+void esp32FotaGsmSSL::getPayloadVersion(char *version_string) { semver_render(&_payloadVersion, version_string); }
 
-void esp32FOTA::setModem(TinyGsm &modem, int led, int pwr, int baud, int rx, int tx) {
+void esp32FotaGsmSSL::setModem(TinyGsm &modem, int led, int pwr, int baud, int rx, int tx) {
   _modem     = &modem;
   _ledPin    = led;
   _pwrPin    = pwr;
@@ -464,7 +464,7 @@ void esp32FOTA::setModem(TinyGsm &modem, int led, int pwr, int baud, int rx, int
   _modemTX   = tx;
 }
 
-void esp32FOTA::turnModemOn() {
+void esp32FotaGsmSSL::turnModemOn() {
   unsigned long current = millis();
   digitalWrite(_ledPin, LOW);
   digitalWrite(_pwrPin, LOW);
@@ -474,7 +474,7 @@ void esp32FOTA::turnModemOn() {
   digitalWrite(_pwrPin, HIGH);
 }
 
-void esp32FOTA::turnModemOff() {
+void esp32FotaGsmSSL::turnModemOff() {
   unsigned long current = millis();
   digitalWrite(_pwrPin, LOW);
   while (millis() - current < 1500) {
@@ -484,7 +484,7 @@ void esp32FOTA::turnModemOff() {
   digitalWrite(_ledPin, LOW);
 }
 
-void esp32FOTA::modemRestart() {
+void esp32FotaGsmSSL::modemRestart() {
   unsigned long current = millis();
   turnModemOff();
   while (millis() - current < 1000) {
@@ -497,7 +497,7 @@ void esp32FOTA::modemRestart() {
   }
 }
 
-void esp32FOTA::readyUpModem(TinyGsm &modem, const char *apn, const char *user, const char *pass) {
+void esp32FotaGsmSSL::readyUpModem(TinyGsm &modem, const char *apn, const char *user, const char *pass) {
   Serial1.begin(_modemBaud, SERIAL_8N1, _modemRX, _modemTX);
   Serial.print("Initializing modem...");
   if (!modem.init()) {

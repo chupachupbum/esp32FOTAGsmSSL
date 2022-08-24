@@ -5,8 +5,8 @@
 
    Setup:
    Step 1 : Set your WiFi (ssid & password)
-   Step 2 : set esp32fota()
-   
+   Step 2 : set esp32FotaGsmSSL()
+
    Upload:
    Step 1 : Menu > Sketch > Export Compiled Library. The bin file will be saved in the sketch folder (Menu > Sketch > Show Sketch folder)
    Step 2 : Upload it to your webserver
@@ -14,33 +14,30 @@
 
 */
 
-#include <esp32fota.h>
 #include <WiFi.h>
+#include <esp32FotaGsmSSL.h>
 
 // Change to your WiFi credentials
-const char *ssid = "";
+const char *ssid     = "";
 const char *password = "";
 
-// esp32fota esp32fota("<Type of Firme for this device>", <this version>, <validate signature>);
-esp32FOTA FOTA("esp32-fota-http", 1, false);
+// esp32FotaGsmSSL esp32FotaGsmSSL("<Type of Firme for this device>", <this version>, <validate signature>);
+esp32FotaGsmSSL FOTA("esp32-fota-http", 1, false);
 
-void setup()
-{
+void setup() {
   FOTA.checkURL = "http://server/fota/fota.json";
   Serial.begin(115200);
   setup_wifi();
 }
 
-void setup_wifi()
-{
+void setup_wifi() {
   delay(10);
   Serial.print("Connecting to ");
   Serial.println(ssid);
 
   WiFi.begin(ssid, password);
 
-  while (WiFi.status() != WL_CONNECTED)
-  {
+  while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
@@ -49,13 +46,10 @@ void setup_wifi()
   Serial.println(WiFi.localIP());
 }
 
-void loop()
-{
-
-  FOTA.useDeviceID = true;
+void loop() {
+  FOTA.useDeviceID   = true;
   bool updatedNeeded = FOTA.execHTTPcheck();
-  if (updatedNeeded)
-  {
+  if (updatedNeeded) {
     FOTA.execOTA();
   }
 

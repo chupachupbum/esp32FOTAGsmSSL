@@ -1,12 +1,12 @@
 #######################################
-# Syntax Coloring Map For esp32FOTA
+# Syntax Coloring Map For esp32FotaGsmSSL
 #######################################
 
 #######################################
 # Datatypes (KEYWORD1)
 #######################################
 
-esp32FOTA	KEYWORD1
+esp32FotaGsmSSL	KEYWORD1
 useDeviceID	KEYWORD1
 checkURL	KEYWORD1
 
