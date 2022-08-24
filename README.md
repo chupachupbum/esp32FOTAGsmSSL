@@ -10,4 +10,5 @@ A simple library to add support for Over-The-Air (OTA) updates to your project, 
 
 ## Usage
 
-Follow the base project [esp32FOTA](https://github.com/chrisjoyce911/esp32FOTA) to setting up json and ca_cert. Looking at main.cpp in tests folder for example.
+Follow the base project [esp32FOTA](https://github.com/chrisjoyce911/esp32FOTA) to setting up json and rsa_key. Looking at main.cpp in tests folder for example.
+Using ca_cert method of SSLClient. You need to add the root_ca of your webserver to ca_cert.h to use https.
