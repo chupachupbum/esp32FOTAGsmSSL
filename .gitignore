@@ -1,3 +1,4 @@
 .vscode/
 _Notes
 .pio
+data/rsa_key.pub

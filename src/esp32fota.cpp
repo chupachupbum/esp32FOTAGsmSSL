@@ -105,17 +105,17 @@ bool esp32FOTA::validate_sig(unsigned char *signature, uint32_t firmware_size) {
     log_e("malloc failed");
     return false;
   }
-  // Serial.printf( "Reading partition (%i sectors, sec_size: %i)\r\n", size, bytestoread );
+  // log_d("Reading partition (%i sectors, sec_size: %i)\r\n", size, bytestoread);
   while (bytestoread > 0) {
-    // Serial.printf( "Left: %i (%i)               \r", size, bytestoread );
+    // log_d("Left: %i (%i)               \r", size, bytestoread);
 
     if (ESP.partitionRead(partition, bytesread, (uint32_t *)_buffer, bytestoread)) {
       // Debug output for the purpose of comparing with file
       /*for( int i = 0; i < bytestoread; i++ ) {
         if( ( i % 16 ) == 0 ) {
-          Serial.printf( "\r\n0x%08x\t", i + bytesread );
+          log_d( "\r\n0x%08x\t", i + bytesread );
         }
-        Serial.printf( "%02x ", (uint8_t*)_buffer[i] );
+        log_d( "%02x ", (uint8_t*)_buffer[i] );
       }*/
 
       mbedtls_md_update(&rsa, (uint8_t *)_buffer, bytestoread);
@@ -177,7 +177,7 @@ void esp32FOTA::execOTA() {
   long timeout = millis();
   while (secure_client.available() == 0) {
     if (millis() - timeout > 30000L) {
-      Serial.println(">>> Client Timeout!");
+      log_e(">>> Client Timeout!");
       secure_client.stop();
     }
   }
@@ -190,21 +190,14 @@ void esp32FOTA::execOTA() {
     if (line.startsWith("content-length:")) {
       contentLength = line.substring(line.lastIndexOf(':') + 1).toInt();
     }
-    if (line.startsWith("content-type:")) {
-      String contentType = line.substring(line.lastIndexOf(':') + 1);
-      if (contentType == "application/octet-stream") {
-        isValidContentType = true;
-      }
-    }
     if (line.length() == 0) {
       break;
     }
   }
 
-  // Check what is the contentLength and if content type is `application/octet-stream`
-  log_i("contentLength : %i, isValidContentType : %s", contentLength, String(isValidContentType));
+  // Check what is the contentLength
+  log_i("contentLength : %i", contentLength);
 
-  // if( contentLength && isValidContentType ) { // Skip check for content-type, uncomment this to enable
   if (_check_sig) {
     // If firmware is signed, extract signature and decrease content-length by 512 bytes for signature
     contentLength = contentLength - 512;
@@ -212,12 +205,11 @@ void esp32FOTA::execOTA() {
   if (Update.begin(contentLength)) {
     unsigned char signature[512];
     if (_check_sig) {
-      client.readBytes(signature, 512);
+      secure_client.readBytes(signature, 512);
     }
     Serial.println("Begin OTA. This may take 2 - 5 mins to complete. Things might be quiet for a while.. Patience!");
     // No activity would appear on the Serial monitor
     // So be patient. This may take 2 - 5mins to complete
-    // Especially with GSM, it would take 5mins for real.
     size_t written = Update.writeStream(secure_client);
 
     if (written == contentLength) {
@@ -257,12 +249,6 @@ void esp32FOTA::execOTA() {
     Serial.println("Not enough space to begin OTA");
     secure_client.stop();
   }
-  // } uncomment for content-type checking
-  //   else
-  //   {
-  //       log_e("There was no content in the response");
-  //       http.end();
-  //   }
 }
 
 bool esp32FOTA::checkJSONManifest(JsonVariant JSONDocument) {

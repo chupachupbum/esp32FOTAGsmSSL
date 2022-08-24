@@ -4,7 +4,7 @@
    Purpose: Perform an OTA update from a bin located on a webserver (HTTPS)
 
    Setup:
-   Step 1 : Set your WiFi (ssid & password)
+   Step 1 : Set your gsm credentials
    Step 2 : set esp32fota()
    Step 3 : Provide SPIFFS filesystem with root_ca.pem of your webserver
 
@@ -37,31 +37,24 @@
 #define SerialAT Serial1  // For GSM module
 
 // Your GPRS credentials, if any
-const char apn[]    = "m3-world";  // TO CHANGE
-const char user[]   = "mms";       // TO CHANGE
-const char pass[]   = "mms";       // TO CHANGE
-bool gprs_connected = false;
-int _ledPin         = 12;
-int _pwrPin         = 4;
+const char apn[]  = "m3-world";  // TO CHANGE
+const char user[] = "mms";       // TO CHANGE
+const char pass[] = "mms";       // TO CHANGE
 
-// GSM variables
 TinyGsm modem(SerialAT);
-
-// esp32fota esp32fota("<Type of Firme for this device>", <this version>, <validate signature>);
-esp32FOTA esp32fota("esp32-fota-http", 1, false, false);
+esp32FOTA esp32fota("esp32-fota-http", 1, true, false);
 
 void setup() {
   // Provide spiffs with root_ca.pem to validate server certificate
   SPIFFS.begin(true);
 
-  esp32fota.checkURL = "https://raw.githubusercontent.com/chupachupbum/upload-folder/master/firmware.json";
+  esp32fota.checkURL = "https://raw.githubusercontent.com/chupachupbum/upload-folder/master/firmware_sig.json";
   Serial.begin(115200);
   esp32fota.setModem(modem, LED_PIN, MODEM_PWRKEY, MODEM_UART_BAUD, MODEM_RX, MODEM_TX);
   esp32fota.readyUpModem(modem, apn, user, pass);
 }
 
 void loop() {
-  // bool updatedNeeded = true;
   bool updatedNeeded = esp32fota.execHTTPcheck();
   if (updatedNeeded) {
     Serial.println("Confirm OTA");
